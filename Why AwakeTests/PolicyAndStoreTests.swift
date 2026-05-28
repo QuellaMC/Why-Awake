@@ -302,17 +302,17 @@ struct PolicyAndStoreTests {
 
     @MainActor
     @Test func refreshCoalescesNewPollWhenPreviousPollIsStillRunning() async throws {
-        let reader = SlowCountingAssertionReader()
+        let reader = FirstCallBlockingAssertionReader()
         let store = WhyAwakeStore(assertionReader: reader)
 
         store.refresh()
-        store.refresh()
-        try await Task.sleep(nanoseconds: 10_000_000)
+        #expect(try await eventually { await reader.callCount == 1 })
 
+        store.refresh()
         #expect(await reader.callCount == 1)
 
-        try await Task.sleep(nanoseconds: 80_000_000)
-        #expect(await reader.callCount == 2)
+        await reader.releaseFirstCall()
+        #expect(try await eventually { await reader.callCount == 2 })
     }
 
     @MainActor
@@ -332,33 +332,32 @@ struct PolicyAndStoreTests {
             activeAssertionTypes: ["PreventUserIdleSystemSleep"],
             blockers: [blocker]
         )
-        let reader = SlowFirstAssertionReader(snapshot: snapshot)
+        let reader = FirstCallBlockingAssertionReader(snapshot: snapshot)
         let store = WhyAwakeStore(assertionReader: reader)
 
         store.refresh()
-        try await Task.sleep(nanoseconds: 10_000_000)
-        store.ignore(blocker)
-        try await Task.sleep(nanoseconds: 120_000_000)
+        #expect(try await eventually { await reader.callCount == 1 })
 
-        #expect(await reader.callCount == 2)
+        store.ignore(blocker)
+        await reader.releaseFirstCall()
+
+        #expect(try await eventually { await reader.callCount == 2 })
+        #expect(try await eventually { await MainActor.run { store.snapshot.blockers.first?.isIgnored == true } })
         #expect(store.history.isEmpty)
-        #expect(store.snapshot.blockers.first?.isIgnored == true)
     }
 
     @MainActor
     @Test func queuedRefreshDoesNotPublishStaleInFlightFailure() async throws {
-        let reader = FailingFirstAssertionReader()
+        let reader = FirstCallFailingAssertionReader()
         let store = WhyAwakeStore(assertionReader: reader)
 
         store.refresh()
-        try await Task.sleep(nanoseconds: 10_000_000)
+        #expect(try await eventually { await reader.callCount == 1 })
+
         store.refresh()
-        try await Task.sleep(nanoseconds: 70_000_000)
+        await reader.releaseFirstCall()
 
-        #expect(await reader.callCount == 2)
-        #expect(store.lastError == nil)
-
-        try await Task.sleep(nanoseconds: 120_000_000)
+        #expect(try await eventually { await reader.callCount == 2 })
         #expect(store.lastError == nil)
     }
 
@@ -370,15 +369,18 @@ struct PolicyAndStoreTests {
         )
 
         store.putDisplayToSleepNow()
-        try await Task.sleep(nanoseconds: 10_000_000)
-
-        #expect(store.lastMessage == "Asked macOS to sleep the display.")
+        #expect(try await eventually {
+            await MainActor.run {
+                store.lastMessage == "Asked macOS to sleep the display."
+            }
+        })
 
         store.refresh()
-        try await Task.sleep(nanoseconds: 10_000_000)
-
-        #expect(store.lastMessage == nil)
-        #expect(store.lastError == nil)
+        #expect(try await eventually {
+            await MainActor.run {
+                store.lastMessage == nil && store.lastError == nil
+            }
+        })
     }
 
     @MainActor
@@ -390,16 +392,19 @@ struct PolicyAndStoreTests {
 
         store.toggleMonitoringPaused()
         store.putDisplayToSleepNow()
-        try await Task.sleep(nanoseconds: 10_000_000)
-
+        #expect(try await eventually {
+            await MainActor.run {
+                store.lastMessage == "Asked macOS to sleep the display."
+            }
+        })
         #expect(store.isMonitoringPaused)
-        #expect(store.lastMessage == "Asked macOS to sleep the display.")
 
         store.refresh()
-        try await Task.sleep(nanoseconds: 10_000_000)
-
-        #expect(store.lastMessage == nil)
-        #expect(store.lastError == nil)
+        #expect(try await eventually {
+            await MainActor.run {
+                store.lastMessage == nil && store.lastError == nil
+            }
+        })
     }
 
     @MainActor
@@ -407,8 +412,11 @@ struct PolicyAndStoreTests {
         let store = WhyAwakeStore(assertionReader: AlwaysFailingAssertionReader())
 
         store.refresh()
-        try await Task.sleep(nanoseconds: 10_000_000)
-        #expect(store.lastError != nil)
+        #expect(try await eventually {
+            await MainActor.run {
+                store.lastError != nil
+            }
+        })
 
         store.toggleMonitoringPaused()
 
@@ -433,25 +441,27 @@ struct PolicyAndStoreTests {
     }
 }
 
-private actor SlowCountingAssertionReader: PowerAssertionReading {
-    private var calls = 0
-
-    var callCount: Int {
-        calls
+private func eventually(
+    timeout: TimeInterval = 1,
+    pollIntervalNanoseconds: UInt64 = 5_000_000,
+    _ condition: @escaping () async -> Bool
+) async throws -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if await condition() {
+            return true
+        }
+        try await Task.sleep(nanoseconds: pollIntervalNanoseconds)
     }
-
-    func snapshot() async throws -> WhyAwakeSnapshot {
-        calls += 1
-        try await Task.sleep(nanoseconds: 50_000_000)
-        return .empty
-    }
+    return await condition()
 }
 
-private actor SlowFirstAssertionReader: PowerAssertionReading {
+private actor FirstCallBlockingAssertionReader: PowerAssertionReading {
     private var calls = 0
+    private var firstCallContinuation: CheckedContinuation<Void, Never>?
     private let result: WhyAwakeSnapshot
 
-    init(snapshot: WhyAwakeSnapshot) {
+    init(snapshot: WhyAwakeSnapshot = .empty) {
         result = snapshot
     }
 
@@ -459,29 +469,43 @@ private actor SlowFirstAssertionReader: PowerAssertionReading {
         calls
     }
 
+    func releaseFirstCall() {
+        firstCallContinuation?.resume()
+        firstCallContinuation = nil
+    }
+
     func snapshot() async throws -> WhyAwakeSnapshot {
         calls += 1
         if calls == 1 {
-            try await Task.sleep(nanoseconds: 50_000_000)
+            await withCheckedContinuation { continuation in
+                firstCallContinuation = continuation
+            }
         }
         return result
     }
 }
 
-private actor FailingFirstAssertionReader: PowerAssertionReading {
+private actor FirstCallFailingAssertionReader: PowerAssertionReading {
     private var calls = 0
+    private var firstCallContinuation: CheckedContinuation<Void, Never>?
 
     var callCount: Int {
         calls
     }
 
+    func releaseFirstCall() {
+        firstCallContinuation?.resume()
+        firstCallContinuation = nil
+    }
+
     func snapshot() async throws -> WhyAwakeSnapshot {
         calls += 1
         if calls == 1 {
-            try await Task.sleep(nanoseconds: 50_000_000)
+            await withCheckedContinuation { continuation in
+                firstCallContinuation = continuation
+            }
             throw TestRefreshError.staleFailure
         }
-        try await Task.sleep(nanoseconds: 100_000_000)
         return .empty
     }
 }
