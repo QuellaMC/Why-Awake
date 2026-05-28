@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: Unit tests
+    runs-on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test \
+            -project "Why Awake.xcodeproj" \
+            -scheme "Why Awake" \
+            -destination "platform=macOS" \
+            -derivedDataPath "${RUNNER_TEMP}/whyawake-dd" \
+            CODE_SIGNING_ALLOWED=NO \
+            -only-testing:"Why AwakeTests"

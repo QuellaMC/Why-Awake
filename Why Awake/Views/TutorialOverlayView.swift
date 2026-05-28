@@ -132,7 +132,9 @@ private struct TutorialCoachCard: View {
     }
 }
 
+#if DEBUG
 #Preview {
     ContentView(store: .preview)
         .frame(width: 1_040, height: 680)
 }
+#endif

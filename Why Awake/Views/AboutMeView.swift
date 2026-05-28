@@ -272,6 +272,8 @@ private extension InfoPanel where Accessory == EmptyView {
     }
 }
 
+#if DEBUG
 #Preview {
     AboutMeView(store: .preview)
 }
+#endif

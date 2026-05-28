@@ -64,6 +64,28 @@ Run one focused test class:
 xcodebuild test -project "Why Awake.xcodeproj" -scheme "Why Awake" -destination "platform=macOS" -derivedDataPath /private/tmp/whyawake-dd CODE_SIGNING_ALLOWED=NO -only-testing:"Why AwakeTests/PowerSettingsParserTests"
 ```
 
+## CI/CD
+
+GitHub Actions are configured for:
+
+- CI on pull requests and pushes to `main`, running the unit test suite on macOS.
+- Release publishing on `v*` tags, running tests, building a Release app, zipping `Why Awake.app`, and attaching it to a GitHub Release.
+
+Create a release by pushing a version tag:
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Build the same unsigned release zip locally:
+
+```sh
+VERSION=v1.0.0 ./script/package_release.sh
+```
+
+The generated GitHub release asset is unsigned by default. Developer ID signing and notarization should be added only after Apple Developer credentials and notarization secrets are available in the repository.
+
 ## Project Map
 
 - `Why Awake/Models`: immutable app data for blockers, snapshots, power settings, history, and keep-awake state.

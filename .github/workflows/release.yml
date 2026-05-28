@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  github-release:
+    name: Build and publish GitHub release
+    runs-on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test \
+            -project "Why Awake.xcodeproj" \
+            -scheme "Why Awake" \
+            -destination "platform=macOS" \
+            -derivedDataPath "${RUNNER_TEMP}/whyawake-test-dd" \
+            CODE_SIGNING_ALLOWED=NO \
+            -only-testing:"Why AwakeTests"
+
+      - name: Package unsigned app
+        id: package
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/whyawake-release-dd
+          OUTPUT_DIR: ${{ runner.temp }}/whyawake-release
+          VERSION: ${{ github.ref_name }}
+        run: |
+          archive_path="$(./script/package_release.sh)"
+          archive_name="$(basename "${archive_path}")"
+          {
+            echo "archive_path=${archive_path}"
+            echo "archive_name=${archive_name}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.archive_name }}
+          path: ${{ steps.package.outputs.archive_path }}
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        env:
+          ARCHIVE_PATH: ${{ steps.package.outputs.archive_path }}
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          release_notes="Automated unsigned build from ${GITHUB_SHA}."
+
+          if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+            gh release upload "${TAG_NAME}" "${ARCHIVE_PATH}" --clobber
+          else
+            gh release create "${TAG_NAME}" "${ARCHIVE_PATH}" \
+              --title "Why Awake ${TAG_NAME}" \
+              --notes "${release_notes}"
+          fi
