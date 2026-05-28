@@ -18,8 +18,10 @@ SAFE_VERSION="${VERSION#refs/tags/}"
 SAFE_VERSION="${SAFE_VERSION//\//-}"
 APP_BUNDLE="$DERIVED_DATA/Build/Products/$CONFIGURATION/$APP_NAME.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
-ARCHIVE_NAME="Why-Awake-$SAFE_VERSION-macOS.zip"
-ARCHIVE_PATH="$OUTPUT_DIR/$ARCHIVE_NAME"
+ZIP_NAME="Why-Awake-$SAFE_VERSION-macOS.zip"
+ZIP_PATH="$OUTPUT_DIR/$ZIP_NAME"
+DMG_NAME="Why-Awake-$SAFE_VERSION-macOS.dmg"
+DMG_PATH="$OUTPUT_DIR/$DMG_NAME"
 
 /bin/mkdir -p "$OUTPUT_DIR"
 
@@ -38,11 +40,32 @@ if [[ ! -x "$APP_BINARY" ]]; then
   exit 1
 fi
 
-if [[ -e "$ARCHIVE_PATH" ]]; then
-  echo "Release archive already exists at $ARCHIVE_PATH" >&2
+if [[ -e "$ZIP_PATH" ]]; then
+  echo "Release archive already exists at $ZIP_PATH" >&2
   exit 1
 fi
 
-/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ARCHIVE_PATH"
+if [[ -e "$DMG_PATH" ]]; then
+  echo "Release disk image already exists at $DMG_PATH" >&2
+  exit 1
+fi
 
-echo "$ARCHIVE_PATH"
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$APP_BUNDLE" "$ZIP_PATH"
+
+DMG_STAGING_DIR="$(/usr/bin/mktemp -d "$OUTPUT_DIR/dmg-staging.XXXXXX")"
+cleanup() {
+  /bin/rm -rf "$DMG_STAGING_DIR"
+}
+trap cleanup EXIT
+
+/usr/bin/ditto "$APP_BUNDLE" "$DMG_STAGING_DIR/$APP_NAME.app"
+/bin/ln -s /Applications "$DMG_STAGING_DIR/Applications"
+
+/usr/bin/hdiutil create \
+  -volname "$APP_NAME $SAFE_VERSION" \
+  -srcfolder "$DMG_STAGING_DIR" \
+  -format UDZO \
+  "$DMG_PATH" >&2
+
+echo "$ZIP_PATH"
+echo "$DMG_PATH"

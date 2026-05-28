@@ -41,32 +41,37 @@ jobs:
           OUTPUT_DIR: ${{ runner.temp }}/whyawake-release
           VERSION: ${{ github.ref_name }}
         run: |
-          archive_path="$(./script/package_release.sh)"
-          archive_name="$(basename "${archive_path}")"
+          package_output="$(./script/package_release.sh)"
+          echo "${package_output}"
+          zip_path="$(printf '%s\n' "${package_output}" | sed -n '1p')"
+          dmg_path="$(printf '%s\n' "${package_output}" | sed -n '2p')"
           {
-            echo "archive_path=${archive_path}"
-            echo "archive_name=${archive_name}"
+            echo "zip_path=${zip_path}"
+            echo "dmg_path=${dmg_path}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.package.outputs.archive_name }}
-          path: ${{ steps.package.outputs.archive_path }}
+          name: Why-Awake-${{ github.ref_name }}-macOS-artifacts
+          path: |
+            ${{ steps.package.outputs.zip_path }}
+            ${{ steps.package.outputs.dmg_path }}
           if-no-files-found: error
 
       - name: Publish GitHub release
         env:
-          ARCHIVE_PATH: ${{ steps.package.outputs.archive_path }}
+          ZIP_PATH: ${{ steps.package.outputs.zip_path }}
+          DMG_PATH: ${{ steps.package.outputs.dmg_path }}
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.ref_name }}
         run: |
           release_notes="Automated unsigned build from ${GITHUB_SHA}."
 
           if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
-            gh release upload "${TAG_NAME}" "${ARCHIVE_PATH}" --clobber
+            gh release upload "${TAG_NAME}" "${ZIP_PATH}" "${DMG_PATH}" --clobber
           else
-            gh release create "${TAG_NAME}" "${ARCHIVE_PATH}" \
+            gh release create "${TAG_NAME}" "${ZIP_PATH}" "${DMG_PATH}" \
               --title "Why Awake ${TAG_NAME}" \
               --notes "${release_notes}"
           fi

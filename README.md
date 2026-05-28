@@ -69,7 +69,7 @@ xcodebuild test -project "Why Awake.xcodeproj" -scheme "Why Awake" -destination 
 GitHub Actions are configured for:
 
 - CI on pull requests and pushes to `main`, running the unit test suite on macOS.
-- Release publishing on `v*` tags, running tests, building a Release app, zipping `Why Awake.app`, and attaching it to a GitHub Release.
+- Release publishing on `v*` tags, running tests, building a Release app, packaging both a zip and drag-to-Applications DMG, and attaching them to a GitHub Release.
 
 Create a release by pushing a version tag:
 
@@ -78,7 +78,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-Build the same unsigned release zip locally:
+Build the same unsigned release zip and DMG locally:
 
 ```sh
 VERSION=v1.0.0 ./script/package_release.sh
