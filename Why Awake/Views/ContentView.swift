@@ -128,7 +128,7 @@ private struct FooterMessageView: View {
     }
 
     private var monitoringFooterStatusColor: Color {
-        store.isMonitoringPaused || !store.isMonitoringWindowFocused ? .orange : .green
+        store.isMonitoringPaused || !store.isAppActive ? .orange : .green
     }
 }
 

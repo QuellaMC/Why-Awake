@@ -100,7 +100,7 @@
 "Pause automatic refresh without quitting the app." = "Pause automatic refresh without quitting the app.";
 "Pause monitoring" = "Pause monitoring";
 "Paused" = "Paused";
-"Paused while unfocused" = "Paused while unfocused";
+"Paused in background" = "Paused in background";
 "Prevent idle system sleep using an assertion owned by Why Awake." = "Prevent idle system sleep using an assertion owned by Why Awake.";
 "Prevents idle system sleep. The display may still turn off, but the Mac will not fully sleep while it is active." = "Prevents idle system sleep. The display may still turn off, but the Mac will not fully sleep while it is active.";
 "Prevents system idle sleep. This is common during playback, calls, active downloads, or intentional keep-awake tools." = "Prevents system idle sleep. This is common during playback, calls, active downloads, or intentional keep-awake tools.";

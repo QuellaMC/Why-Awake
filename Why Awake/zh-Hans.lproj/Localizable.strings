@@ -100,7 +100,7 @@
 "Pause automatic refresh without quitting the app." = "暂停自动刷新，但不退出 App。";
 "Pause monitoring" = "暂停监控";
 "Paused" = "已暂停";
-"Paused while unfocused" = "未聚焦时暂停";
+"Paused in background" = "后台暂停";
 "Prevent idle system sleep using an assertion owned by Why Awake." = "使用 Why Awake 拥有的断言阻止系统闲置睡眠。";
 "Prevents idle system sleep. The display may still turn off, but the Mac will not fully sleep while it is active." = "阻止系统闲置睡眠。显示器仍可能关闭，但该断言活跃时 Mac 不会完全睡眠。";
 "Prevents system idle sleep. This is common during playback, calls, active downloads, or intentional keep-awake tools." = "阻止系统闲置睡眠。这常见于播放、通话、活跃下载或有意保持唤醒的工具。";

@@ -20,8 +20,8 @@ struct Why_AwakeApp: App {
                 .frame(minWidth: 980, minHeight: 640)
                 .environment(\.locale, store.appLocale)
                 .preferredColorScheme(store.appearancePreference.colorScheme)
-                .background(WindowFocusObserver { isFocused in
-                    store.setMonitoringWindowFocused(isFocused)
+                .background(ApplicationActivationObserver { isActive in
+                    store.setAppActive(isActive)
                 })
         }
         .commands {
@@ -103,76 +103,59 @@ struct Why_AwakeApp: App {
     }
 }
 
-private struct WindowFocusObserver: NSViewRepresentable {
-    var onFocusChange: (Bool) -> Void
+private struct ApplicationActivationObserver: NSViewRepresentable {
+    var onActivationChange: (Bool) -> Void
 
-    func makeNSView(context: Context) -> FocusTrackingView {
-        let view = FocusTrackingView()
-        view.onFocusChange = onFocusChange
+    func makeNSView(context: Context) -> ApplicationActivationTrackingView {
+        let view = ApplicationActivationTrackingView()
+        view.onActivationChange = onActivationChange
         return view
     }
 
-    func updateNSView(_ nsView: FocusTrackingView, context: Context) {
-        nsView.onFocusChange = onFocusChange
+    func updateNSView(_ nsView: ApplicationActivationTrackingView, context: Context) {
+        nsView.onActivationChange = onActivationChange
     }
 }
 
-private final class FocusTrackingView: NSView {
-    var onFocusChange: ((Bool) -> Void)?
-    private weak var observedWindow: NSWindow?
+private final class ApplicationActivationTrackingView: NSView {
+    var onActivationChange: ((Bool) -> Void)?
     private var notificationTokens: [NSObjectProtocol] = []
 
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        observe(window)
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        observeApplicationActivation()
     }
 
     deinit {
-        removeWindowObservers()
+        removeApplicationObservers()
     }
 
-    private func observe(_ window: NSWindow?) {
-        guard observedWindow !== window else { return }
-        removeWindowObservers()
-        observedWindow = window
-
-        guard let window else {
-            onFocusChange?(false)
-            return
-        }
-
+    private func observeApplicationActivation() {
+        guard notificationTokens.isEmpty else { return }
         let center = NotificationCenter.default
         notificationTokens = [
             center.addObserver(
-                forName: NSWindow.didBecomeKeyNotification,
-                object: window,
+                forName: NSApplication.didBecomeActiveNotification,
+                object: NSApp,
                 queue: .main
             ) { [weak self] _ in
-                self?.onFocusChange?(true)
+                self?.onActivationChange?(true)
             },
             center.addObserver(
-                forName: NSWindow.didResignKeyNotification,
-                object: window,
+                forName: NSApplication.didResignActiveNotification,
+                object: NSApp,
                 queue: .main
             ) { [weak self] _ in
-                self?.onFocusChange?(false)
-            },
-            center.addObserver(
-                forName: NSWindow.willCloseNotification,
-                object: window,
-                queue: .main
-            ) { [weak self] _ in
-                self?.onFocusChange?(false)
+                self?.onActivationChange?(false)
             }
         ]
 
-        DispatchQueue.main.async { [weak self, weak window] in
-            guard let self, let window, self.observedWindow === window else { return }
-            self.onFocusChange?(window.isKeyWindow)
+        DispatchQueue.main.async { [weak self] in
+            self?.onActivationChange?(NSApp.isActive)
         }
     }
 
-    private func removeWindowObservers() {
+    private func removeApplicationObservers() {
         for token in notificationTokens {
             NotificationCenter.default.removeObserver(token)
         }

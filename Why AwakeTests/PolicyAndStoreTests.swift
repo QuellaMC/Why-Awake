@@ -152,18 +152,18 @@ struct PolicyAndStoreTests {
     }
 
     @MainActor
-    @Test func monitoringFooterStatusTextReflectsPauseAndWindowFocus() {
+    @Test func monitoringFooterStatusTextReflectsPauseAndAppActivity() {
         let store = WhyAwakeStore(assertionReader: StaticPowerAssertionClient(.empty))
 
         #expect(store.monitoringFooterStatusText == "Live 1 second")
 
-        store.setMonitoringWindowFocused(false)
-        #expect(store.monitoringFooterStatusText == "Paused while unfocused")
+        store.setAppActive(false)
+        #expect(store.monitoringFooterStatusText == "Paused in background")
 
         store.toggleMonitoringPaused()
         #expect(store.monitoringFooterStatusText == "Paused")
 
-        store.setMonitoringWindowFocused(true)
+        store.setAppActive(true)
         #expect(store.monitoringFooterStatusText == "Paused")
 
         store.toggleMonitoringPaused()
@@ -337,18 +337,18 @@ struct PolicyAndStoreTests {
     }
 
     @MainActor
-    @Test func automaticRefreshPausesWhileMonitoringWindowIsUnfocusedAndRefreshesWhenFocusedAgain() async throws {
+    @Test func automaticRefreshPausesWhileAppInactiveAndRefreshesWhenActiveAgain() async throws {
         let reader = CountingAssertionReader()
         let store = WhyAwakeStore(assertionReader: reader)
 
-        store.setMonitoringWindowFocused(false)
+        store.setAppActive(false)
         store.startMonitoring(interval: 60)
         store.refreshFromAutomaticMonitor()
         try await Task.sleep(nanoseconds: 50_000_000)
 
         #expect(await reader.callCount == 0)
 
-        store.setMonitoringWindowFocused(true)
+        store.setAppActive(true)
         #expect(try await eventually { await reader.callCount >= 1 })
 
         try await Task.sleep(nanoseconds: 20_000_000)
