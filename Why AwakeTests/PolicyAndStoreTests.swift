@@ -140,13 +140,34 @@ struct PolicyAndStoreTests {
         let store = WhyAwakeStore(assertionReader: StaticPowerAssertionClient(.empty))
 
         #expect(store.refreshInterval == 1)
+        #expect(store.monitoringFooterStatusText == "Live 1 second")
 
         store.setRefreshInterval(5)
         #expect(store.refreshInterval == 5)
         #expect(store.refreshIntervalText == "5 seconds")
+        #expect(store.monitoringFooterStatusText == "Live 5 seconds")
 
         store.setRefreshInterval(0.2)
         #expect(store.refreshInterval == 1)
+    }
+
+    @MainActor
+    @Test func monitoringFooterStatusTextReflectsPauseAndAppActivity() {
+        let store = WhyAwakeStore(assertionReader: StaticPowerAssertionClient(.empty))
+
+        #expect(store.monitoringFooterStatusText == "Live 1 second")
+
+        store.setAppActive(false)
+        #expect(store.monitoringFooterStatusText == "Paused in background")
+
+        store.toggleMonitoringPaused()
+        #expect(store.monitoringFooterStatusText == "Paused")
+
+        store.setAppActive(true)
+        #expect(store.monitoringFooterStatusText == "Paused")
+
+        store.toggleMonitoringPaused()
+        #expect(store.monitoringFooterStatusText == "Live 1 second")
     }
 
     @MainActor
@@ -313,6 +334,28 @@ struct PolicyAndStoreTests {
 
         await reader.releaseFirstCall()
         #expect(try await eventually { await reader.callCount == 2 })
+    }
+
+    @MainActor
+    @Test func automaticRefreshPausesWhileAppInactiveAndRefreshesWhenActiveAgain() async throws {
+        let reader = CountingAssertionReader()
+        let store = WhyAwakeStore(assertionReader: reader)
+
+        store.setAppActive(false)
+        store.startMonitoring(interval: 60)
+        store.refreshFromAutomaticMonitor()
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        #expect(await reader.callCount == 0)
+
+        store.setAppActive(true)
+        #expect(try await eventually { await reader.callCount >= 1 })
+
+        try await Task.sleep(nanoseconds: 20_000_000)
+        store.refreshFromAutomaticMonitor()
+        #expect(try await eventually { await reader.callCount >= 2 })
+
+        store.stopMonitoring()
     }
 
     @MainActor
@@ -512,6 +555,19 @@ private actor FirstCallFailingAssertionReader: PowerAssertionReading {
 
 private enum TestRefreshError: Error {
     case staleFailure
+}
+
+private actor CountingAssertionReader: PowerAssertionReading {
+    private var calls = 0
+
+    var callCount: Int {
+        calls
+    }
+
+    func snapshot() async throws -> WhyAwakeSnapshot {
+        calls += 1
+        return .empty
+    }
 }
 
 private struct AlwaysFailingAssertionReader: PowerAssertionReading {

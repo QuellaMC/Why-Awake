@@ -20,6 +20,9 @@ struct Why_AwakeApp: App {
                 .frame(minWidth: 980, minHeight: 640)
                 .environment(\.locale, store.appLocale)
                 .preferredColorScheme(store.appearancePreference.colorScheme)
+                .background(ApplicationActivationObserver { isActive in
+                    store.setAppActive(isActive)
+                })
         }
         .commands {
             CommandGroup(replacing: .appInfo) {
@@ -97,6 +100,66 @@ struct Why_AwakeApp: App {
                 .environment(\.locale, store.appLocale)
                 .preferredColorScheme(store.appearancePreference.colorScheme)
         }
+    }
+}
+
+private struct ApplicationActivationObserver: NSViewRepresentable {
+    var onActivationChange: (Bool) -> Void
+
+    func makeNSView(context: Context) -> ApplicationActivationTrackingView {
+        let view = ApplicationActivationTrackingView()
+        view.onActivationChange = onActivationChange
+        return view
+    }
+
+    func updateNSView(_ nsView: ApplicationActivationTrackingView, context: Context) {
+        nsView.onActivationChange = onActivationChange
+    }
+}
+
+private final class ApplicationActivationTrackingView: NSView {
+    var onActivationChange: ((Bool) -> Void)?
+    private var notificationTokens: [NSObjectProtocol] = []
+
+    override func viewDidMoveToSuperview() {
+        super.viewDidMoveToSuperview()
+        observeApplicationActivation()
+    }
+
+    deinit {
+        removeApplicationObservers()
+    }
+
+    private func observeApplicationActivation() {
+        guard notificationTokens.isEmpty else { return }
+        let center = NotificationCenter.default
+        notificationTokens = [
+            center.addObserver(
+                forName: NSApplication.didBecomeActiveNotification,
+                object: NSApp,
+                queue: .main
+            ) { [weak self] _ in
+                self?.onActivationChange?(true)
+            },
+            center.addObserver(
+                forName: NSApplication.didResignActiveNotification,
+                object: NSApp,
+                queue: .main
+            ) { [weak self] _ in
+                self?.onActivationChange?(false)
+            }
+        ]
+
+        DispatchQueue.main.async { [weak self] in
+            self?.onActivationChange?(NSApp.isActive)
+        }
+    }
+
+    private func removeApplicationObservers() {
+        for token in notificationTokens {
+            NotificationCenter.default.removeObserver(token)
+        }
+        notificationTokens = []
     }
 }
 
