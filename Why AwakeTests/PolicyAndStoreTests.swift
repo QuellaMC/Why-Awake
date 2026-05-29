@@ -316,6 +316,28 @@ struct PolicyAndStoreTests {
     }
 
     @MainActor
+    @Test func automaticRefreshPausesWhileAppInactiveAndRefreshesWhenActiveAgain() async throws {
+        let reader = CountingAssertionReader()
+        let store = WhyAwakeStore(assertionReader: reader)
+
+        store.setAppActive(false)
+        store.startMonitoring(interval: 60)
+        store.refreshFromAutomaticMonitor()
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        #expect(await reader.callCount == 0)
+
+        store.setAppActive(true)
+        #expect(try await eventually { await reader.callCount >= 1 })
+
+        try await Task.sleep(nanoseconds: 20_000_000)
+        store.refreshFromAutomaticMonitor()
+        #expect(try await eventually { await reader.callCount >= 2 })
+
+        store.stopMonitoring()
+    }
+
+    @MainActor
     @Test func stateChangingRefreshDoesNotCommitStaleInFlightResult() async throws {
         let blocker = SleepBlocker(
             processName: "Amphetamine",
@@ -512,6 +534,19 @@ private actor FirstCallFailingAssertionReader: PowerAssertionReading {
 
 private enum TestRefreshError: Error {
     case staleFailure
+}
+
+private actor CountingAssertionReader: PowerAssertionReading {
+    private var calls = 0
+
+    var callCount: Int {
+        calls
+    }
+
+    func snapshot() async throws -> WhyAwakeSnapshot {
+        calls += 1
+        return .empty
+    }
 }
 
 private struct AlwaysFailingAssertionReader: PowerAssertionReading {

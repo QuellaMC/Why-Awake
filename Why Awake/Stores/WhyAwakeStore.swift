@@ -15,6 +15,7 @@ public final class WhyAwakeStore: ObservableObject {
     @Published public private(set) var currentTutorialStep: TutorialStep
     @Published public var selectedBlockerID: SleepBlocker.ID?
     @Published public var isMonitoringPaused = false
+    @Published public private(set) var isAppActive = true
     @Published public var lastMessage: String?
     @Published public var lastError: String?
 
@@ -229,10 +230,12 @@ public final class WhyAwakeStore: ObservableObject {
             persistRefreshInterval()
         }
         guard timer == nil else { return }
-        refresh()
+        if isAppActive {
+            refresh()
+        }
         timer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.refreshFromTimer()
+                self?.refreshFromAutomaticMonitor()
             }
         }
     }
@@ -247,9 +250,17 @@ public final class WhyAwakeStore: ObservableObject {
     public func toggleMonitoringPaused() {
         isMonitoringPaused.toggle()
         setTransientMessage(isMonitoringPaused ? localized("Monitoring paused.") : localized("Monitoring resumed."))
-        if !isMonitoringPaused {
+        if !isMonitoringPaused && isAppActive {
             refresh()
         }
+    }
+
+    public func setAppActive(_ nextIsAppActive: Bool) {
+        guard nextIsAppActive != isAppActive else { return }
+        isAppActive = nextIsAppActive
+
+        guard nextIsAppActive, timer != nil, !isMonitoringPaused else { return }
+        refresh()
     }
 
     public func setRefreshInterval(_ interval: TimeInterval) {
@@ -317,7 +328,8 @@ public final class WhyAwakeStore: ObservableObject {
         requestRefresh(discardInFlightResult: true, queueIfBusy: true, allowWhenPaused: true)
     }
 
-    private func refreshFromTimer() {
+    func refreshFromAutomaticMonitor() {
+        guard isAppActive else { return }
         requestRefresh(discardInFlightResult: false, queueIfBusy: false, allowWhenPaused: false)
     }
 

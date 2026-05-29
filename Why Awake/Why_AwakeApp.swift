@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct Why_AwakeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var store = WhyAwakeStore.live()
 
     var body: some Scene {
@@ -20,6 +21,9 @@ struct Why_AwakeApp: App {
                 .frame(minWidth: 980, minHeight: 640)
                 .environment(\.locale, store.appLocale)
                 .preferredColorScheme(store.appearancePreference.colorScheme)
+        }
+        .onChange(of: scenePhase) { _, nextPhase in
+            store.setAppActive(nextPhase == .active)
         }
         .commands {
             CommandGroup(replacing: .appInfo) {
