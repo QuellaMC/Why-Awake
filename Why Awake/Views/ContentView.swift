@@ -118,18 +118,17 @@ private struct FooterMessageView: View {
 
             Spacer()
 
-            if store.isMonitoringPaused {
-                Label(store.localized("Paused"), systemImage: "pause.fill")
-                    .foregroundStyle(.orange)
-            } else {
-                Label(store.localized("Live %@", store.refreshIntervalText), systemImage: "dot.radiowaves.left.and.right")
-                    .foregroundStyle(.green)
-            }
+            Label(store.monitoringFooterStatusText, systemImage: store.monitoringFooterStatusSystemImage)
+                .foregroundStyle(monitoringFooterStatusColor)
         }
         .font(.caption)
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
         .background(.bar)
+    }
+
+    private var monitoringFooterStatusColor: Color {
+        store.isMonitoringPaused || !store.isMonitoringWindowFocused ? .orange : .green
     }
 }
 

@@ -186,6 +186,26 @@ public final class WhyAwakeStore: ObservableObject {
         Self.refreshIntervalLabel(for: refreshInterval, localizer: localizer)
     }
 
+    public var monitoringFooterStatusText: String {
+        if isMonitoringPaused {
+            return localized("Paused")
+        }
+        if !isMonitoringWindowFocused {
+            return localized("Paused while unfocused")
+        }
+        return localized("Live %@", refreshIntervalText)
+    }
+
+    public var monitoringFooterStatusSystemImage: String {
+        if isMonitoringPaused {
+            return "pause.fill"
+        }
+        if !isMonitoringWindowFocused {
+            return "pause.circle"
+        }
+        return "dot.radiowaves.left.and.right"
+    }
+
     public var hiddenAssertionsSummary: String {
         let count = secondaryBlockers.count
         if count == 1 {

@@ -140,13 +140,34 @@ struct PolicyAndStoreTests {
         let store = WhyAwakeStore(assertionReader: StaticPowerAssertionClient(.empty))
 
         #expect(store.refreshInterval == 1)
+        #expect(store.monitoringFooterStatusText == "Live 1 second")
 
         store.setRefreshInterval(5)
         #expect(store.refreshInterval == 5)
         #expect(store.refreshIntervalText == "5 seconds")
+        #expect(store.monitoringFooterStatusText == "Live 5 seconds")
 
         store.setRefreshInterval(0.2)
         #expect(store.refreshInterval == 1)
+    }
+
+    @MainActor
+    @Test func monitoringFooterStatusTextReflectsPauseAndWindowFocus() {
+        let store = WhyAwakeStore(assertionReader: StaticPowerAssertionClient(.empty))
+
+        #expect(store.monitoringFooterStatusText == "Live 1 second")
+
+        store.setMonitoringWindowFocused(false)
+        #expect(store.monitoringFooterStatusText == "Paused while unfocused")
+
+        store.toggleMonitoringPaused()
+        #expect(store.monitoringFooterStatusText == "Paused")
+
+        store.setMonitoringWindowFocused(true)
+        #expect(store.monitoringFooterStatusText == "Paused")
+
+        store.toggleMonitoringPaused()
+        #expect(store.monitoringFooterStatusText == "Live 1 second")
     }
 
     @MainActor
