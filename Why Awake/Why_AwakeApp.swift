@@ -12,7 +12,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct Why_AwakeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var store = WhyAwakeStore.live()
 
     var body: some Scene {
@@ -21,9 +20,9 @@ struct Why_AwakeApp: App {
                 .frame(minWidth: 980, minHeight: 640)
                 .environment(\.locale, store.appLocale)
                 .preferredColorScheme(store.appearancePreference.colorScheme)
-        }
-        .onChange(of: scenePhase) { _, nextPhase in
-            store.setAppActive(nextPhase == .active)
+                .background(WindowFocusObserver { isFocused in
+                    store.setMonitoringWindowFocused(isFocused)
+                })
         }
         .commands {
             CommandGroup(replacing: .appInfo) {
@@ -101,6 +100,83 @@ struct Why_AwakeApp: App {
                 .environment(\.locale, store.appLocale)
                 .preferredColorScheme(store.appearancePreference.colorScheme)
         }
+    }
+}
+
+private struct WindowFocusObserver: NSViewRepresentable {
+    var onFocusChange: (Bool) -> Void
+
+    func makeNSView(context: Context) -> FocusTrackingView {
+        let view = FocusTrackingView()
+        view.onFocusChange = onFocusChange
+        return view
+    }
+
+    func updateNSView(_ nsView: FocusTrackingView, context: Context) {
+        nsView.onFocusChange = onFocusChange
+    }
+}
+
+private final class FocusTrackingView: NSView {
+    var onFocusChange: ((Bool) -> Void)?
+    private weak var observedWindow: NSWindow?
+    private var notificationTokens: [NSObjectProtocol] = []
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        observe(window)
+    }
+
+    deinit {
+        removeWindowObservers()
+    }
+
+    private func observe(_ window: NSWindow?) {
+        guard observedWindow !== window else { return }
+        removeWindowObservers()
+        observedWindow = window
+
+        guard let window else {
+            onFocusChange?(false)
+            return
+        }
+
+        let center = NotificationCenter.default
+        notificationTokens = [
+            center.addObserver(
+                forName: NSWindow.didBecomeKeyNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                self?.onFocusChange?(true)
+            },
+            center.addObserver(
+                forName: NSWindow.didResignKeyNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                self?.onFocusChange?(false)
+            },
+            center.addObserver(
+                forName: NSWindow.willCloseNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                self?.onFocusChange?(false)
+            }
+        ]
+
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window, self.observedWindow === window else { return }
+            self.onFocusChange?(window.isKeyWindow)
+        }
+    }
+
+    private func removeWindowObservers() {
+        for token in notificationTokens {
+            NotificationCenter.default.removeObserver(token)
+        }
+        notificationTokens = []
     }
 }
 

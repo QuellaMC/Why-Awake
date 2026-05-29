@@ -15,7 +15,7 @@ public final class WhyAwakeStore: ObservableObject {
     @Published public private(set) var currentTutorialStep: TutorialStep
     @Published public var selectedBlockerID: SleepBlocker.ID?
     @Published public var isMonitoringPaused = false
-    @Published public private(set) var isAppActive = true
+    @Published public private(set) var isMonitoringWindowFocused = true
     @Published public var lastMessage: String?
     @Published public var lastError: String?
 
@@ -230,7 +230,7 @@ public final class WhyAwakeStore: ObservableObject {
             persistRefreshInterval()
         }
         guard timer == nil else { return }
-        if isAppActive {
+        if isMonitoringWindowFocused {
             refresh()
         }
         timer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in
@@ -250,16 +250,16 @@ public final class WhyAwakeStore: ObservableObject {
     public func toggleMonitoringPaused() {
         isMonitoringPaused.toggle()
         setTransientMessage(isMonitoringPaused ? localized("Monitoring paused.") : localized("Monitoring resumed."))
-        if !isMonitoringPaused && isAppActive {
+        if !isMonitoringPaused && isMonitoringWindowFocused {
             refresh()
         }
     }
 
-    public func setAppActive(_ nextIsAppActive: Bool) {
-        guard nextIsAppActive != isAppActive else { return }
-        isAppActive = nextIsAppActive
+    public func setMonitoringWindowFocused(_ nextIsFocused: Bool) {
+        guard nextIsFocused != isMonitoringWindowFocused else { return }
+        isMonitoringWindowFocused = nextIsFocused
 
-        guard nextIsAppActive, timer != nil, !isMonitoringPaused else { return }
+        guard nextIsFocused, timer != nil, !isMonitoringPaused else { return }
         refresh()
     }
 
@@ -329,7 +329,7 @@ public final class WhyAwakeStore: ObservableObject {
     }
 
     func refreshFromAutomaticMonitor() {
-        guard isAppActive else { return }
+        guard isMonitoringWindowFocused else { return }
         requestRefresh(discardInFlightResult: false, queueIfBusy: false, allowWhenPaused: false)
     }
 

@@ -316,18 +316,18 @@ struct PolicyAndStoreTests {
     }
 
     @MainActor
-    @Test func automaticRefreshPausesWhileAppInactiveAndRefreshesWhenActiveAgain() async throws {
+    @Test func automaticRefreshPausesWhileMonitoringWindowIsUnfocusedAndRefreshesWhenFocusedAgain() async throws {
         let reader = CountingAssertionReader()
         let store = WhyAwakeStore(assertionReader: reader)
 
-        store.setAppActive(false)
+        store.setMonitoringWindowFocused(false)
         store.startMonitoring(interval: 60)
         store.refreshFromAutomaticMonitor()
         try await Task.sleep(nanoseconds: 50_000_000)
 
         #expect(await reader.callCount == 0)
 
-        store.setAppActive(true)
+        store.setMonitoringWindowFocused(true)
         #expect(try await eventually { await reader.callCount >= 1 })
 
         try await Task.sleep(nanoseconds: 20_000_000)
